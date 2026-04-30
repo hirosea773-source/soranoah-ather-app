@@ -66,8 +66,7 @@ export default function DropZone({
 
   return (
     <div
-      className={`relative border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition
-      ${isDragging ? "bg-blue-50 border-blue-400" : "bg-white"}`}
+      className="relative w-full max-w-4xl mx-auto min-h-[320px] rounded-3xl bg-slate-100 p-4 sm:p-6"
       onDragOver={(e) => {
         e.preventDefault();
         setIsDragging(true);
@@ -78,34 +77,16 @@ export default function DropZone({
         setIsDragging(false);
         handleFiles(e.dataTransfer.files);
       }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          inputRef.current?.click();
-        }
-      }}
       role="button"
       tabIndex={0}
       aria-label="Drag and drop images here or click to browse"
     >
-      <p className="font-medium">
-        {hasImages
-          ? "追加の画像をドラッグ＆ドロップ"
-          : "画像が選択されていません"}
-      </p>
-
-      <p className="text-sm text-gray-500 mt-1">
-        {hasImages
-          ? "またはクリックして追加選択"
-          : "ドラッグ＆ドロップまたはクリックして選択"}
-      </p>
-
       <input
         ref={inputRef}
         type="file"
         multiple
         accept="image/jpeg,image/png,image/webp"
-        className="absolute inset-0 opacity-0 cursor-pointer"
+        className="absolute inset-0 opacity-0 cursor-pointer z-0"
         onChange={(e) => {
           handleFiles(e.target.files);
           setTimeout(() => {
@@ -113,6 +94,40 @@ export default function DropZone({
           }, 0);
         }}
       />
+
+      <div
+        className={`relative z-10 h-full w-full rounded-xl border-2 border-dashed p-10 text-center hover:bg-muted/50 transition cursor-pointer ${isDragging ? "bg-blue-50 border-blue-400 shadow-lg" : "border-slate-300"}`}
+      >
+        <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+          <div className="inline-flex rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700">
+            アップロードエリア
+          </div>
+
+          <p className="text-xl font-semibold text-slate-900">
+            {hasImages
+              ? "追加の画像をドラッグ＆ドロップ"
+              : "ここに画像をドロップ"}
+          </p>
+
+          <p className="text-sm text-slate-600 max-w-lg">
+            {hasImages
+              ? "またはここをクリックして追加選択してください。"
+              : "JPG・PNG・WebP をドラッグアンドドロップするか、クリックして選択してください。"}
+          </p>
+
+          <span className="inline-flex rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs text-slate-500">
+            JPG・PNG・WebP / 最大20ファイル / 20MBまで
+          </span>
+
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="mt-4 rounded-full border border-slate-300 bg-slate-100 px-5 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-200"
+          >
+            アップロード
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

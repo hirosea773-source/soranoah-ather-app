@@ -18,7 +18,7 @@ export function useImageProcessor() {
     if (workersRef.current.length === 0) {
       for (let i = 0; i < count; i++) {
         workersRef.current.push(
-          new Worker(new URL("./resizeWorker.ts", import.meta.url)),
+          new Worker(new URL("../workers/resizeWorker.ts", import.meta.url)),
         );
       }
     }

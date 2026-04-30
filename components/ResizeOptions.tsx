@@ -78,23 +78,33 @@ export function ResizeOptions({
       {/* モード */}
       <div>
         <p className="font-medium">リサイズ方法</p>
-        <div className="flex gap-2 mt-2">
-          <button onClick={() => update({ mode: "pixel" })}>
+        <div className="flex flex-col gap-2 mt-3 sm:flex-row">
+          <button
+            onClick={() => update({ mode: "pixel" })}
+            className={`w-full rounded-lg border px-3 py-2 text-left sm:text-center ${settings.mode === "pixel" ? "border-blue-500 bg-blue-50" : "border-gray-300 bg-white"}`}
+          >
             ピクセル指定
           </button>
-          <button onClick={() => update({ mode: "percentage" })}>%指定</button>
+          <button
+            onClick={() => update({ mode: "percentage" })}
+            className={`w-full rounded-lg border px-3 py-2 text-left sm:text-center ${settings.mode === "percentage" ? "border-blue-500 bg-blue-50" : "border-gray-300 bg-white"}`}
+          >
+            %指定
+          </button>
         </div>
       </div>
 
       {/* Pixel */}
       {settings.mode === "pixel" && (
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <input
+            className="w-full rounded-lg border border-gray-300 px-3 py-2"
             type="number"
             value={settings.width}
             onChange={(e) => update({ width: Number(e.target.value) })}
           />
           <input
+            className="w-full rounded-lg border border-gray-300 px-3 py-2"
             type="number"
             value={settings.height}
             onChange={(e) => update({ height: Number(e.target.value) })}
@@ -104,9 +114,13 @@ export function ResizeOptions({
 
       {/* Percentage */}
       {settings.mode === "percentage" && (
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           {[25, 50, 75].map((p) => (
-            <button key={p} onClick={() => update({ percentage: p })}>
+            <button
+              key={p}
+              onClick={() => update({ percentage: p })}
+              className={`w-full rounded-lg border px-3 py-2 ${settings.percentage === p ? "border-blue-500 bg-blue-50" : "border-gray-300 bg-white"}`}
+            >
               {p}%
             </button>
           ))}
@@ -114,23 +128,25 @@ export function ResizeOptions({
       )}
 
       {/* その他 */}
-      <div className="flex flex-col gap-2">
-        <label>
+      <div className="space-y-3">
+        <label className="flex items-center gap-2">
           <input
             type="checkbox"
             checked={settings.keepAspect}
             onChange={(e) => update({ keepAspect: e.target.checked })}
+            className="h-4 w-4 rounded border-gray-300"
           />
-          縦横比を維持
+          <span className="text-sm">縦横比を維持</span>
         </label>
 
-        <label>
+        <label className="flex items-center gap-2">
           <input
             type="checkbox"
             checked={settings.preventUpscale}
             onChange={(e) => update({ preventUpscale: e.target.checked })}
+            className="h-4 w-4 rounded border-gray-300"
           />
-          小さい画像を拡大しない
+          <span className="text-sm">小さい画像を拡大しない</span>
         </label>
       </div>
 
@@ -138,6 +154,7 @@ export function ResizeOptions({
       <select
         value={settings.format}
         onChange={(e) => update({ format: e.target.value as any })}
+        className="w-full rounded-lg border border-gray-300 px-3 py-2"
       >
         <option value="original">元の形式</option>
         <option value="jpeg">JPG</option>
@@ -148,6 +165,7 @@ export function ResizeOptions({
       {/* JPEG品質 */}
       {settings.format === "jpeg" && (
         <input
+          className="w-full"
           type="range"
           min={10}
           max={100}

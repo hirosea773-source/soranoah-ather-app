@@ -7,6 +7,7 @@
  */
 
 import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 
 export type ImageItem = {
   id: string;
@@ -28,9 +29,9 @@ export function ImageGrid({ images, onReorder }: Props) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
       {images.map((img, index) => (
-        <div
+        <Card
           key={img.id}
-          className="bg-white rounded-lg p-3 space-y-2 cursor-move"
+          className="cursor-move"
           draggable
           onDragStart={() => setDragIndex(index)}
           onDragOver={(e) => e.preventDefault()}
@@ -41,24 +42,24 @@ export function ImageGrid({ images, onReorder }: Props) {
             }
           }}
         >
-          <img
-            src={img.previewUrl}
-            alt={img.name}
-            className="w-full h-[150px] object-cover rounded"
-          />
+          <CardContent className="p-3 space-y-2">
+            <img
+              src={img.previewUrl}
+              alt={img.name}
+              className="w-full h-[150px] object-cover rounded"
+            />
 
-          <div className="text-sm space-y-1">
-            <p className="font-medium truncate">{img.name}</p>
-
-            <p className="text-gray-600">
-              サイズ: {(img.size / 1024).toFixed(1)} KB
-            </p>
-
-            <p className="text-gray-600">
-              解像度: {img.width || "-"} × {img.height || "-"}
-            </p>
-          </div>
-        </div>
+            <div className="text-sm space-y-1">
+              <p className="font-medium truncate">{img.name}</p>
+              <p className="text-muted-foreground">
+                {img.width}×{img.height}
+              </p>
+              <p className="text-muted-foreground">
+                {(img.size / 1024 / 1024).toFixed(1)}MB
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       ))}
     </div>
   );

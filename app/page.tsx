@@ -6,24 +6,33 @@
  */
 
 import { useState, useEffect } from "react";
-import DropZone from "@/components/DropZone";
-import { ImageGrid, ImageItem } from "@/components/ImageGrid";
-import { ResizeOptions, ResizeSettings } from "@/components/ResizeOptions";
-import { useImageProcessor } from "@/lib/useImageProcessor";
-import { exportAsZip } from "@/lib/zipExport";
-import { ProgressBar } from "@/components/ProgressBar";
+import { Button } from "@/components/ui/button";
+import { ImageItem } from "@/components/ImageGrid";
+import { ResizeSettings } from "@/components/ResizeOptions";
+import { useImageProcessor } from "@/features/image-resizer/hooks/useImageProcessor";
+import { exportAsZip } from "@/features/image-resizer/utils/zipExport";
 import { ComparePreview } from "@/components/ComparePreview";
 import { ImageModal } from "@/components/ImageModal";
+import { toast } from "sonner";
+import { PageContainer } from "@/components/primitives/PageContainer";
+import { SectionTitle } from "@/components/primitives/SectionTitle";
+import { HeroSection } from "@/features/image-resizer/components/HeroSection";
+import { UploadCard } from "@/features/image-resizer/components/UploadCard";
+import { ResizeSettingsCard } from "@/features/image-resizer/components/ResizeSettingsCard";
+import { PreviewGrid } from "@/features/image-resizer/components/PreviewGrid";
+import { ProcessingCard } from "@/features/image-resizer/components/ProcessingCard";
 
 export default function HomePage() {
   const [images, setImages] = useState<ImageItem[]>([]);
   const [settings, setSettings] = useState<ResizeSettings | null>(null);
   const [processedResults, setProcessedResults] = useState<Blob[] | null>(null);
-  const [history, setHistory] = useState<string[]>([]);
   const [afterMap, setAfterMap] = useState<Record<string, string>>({});
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [processingError, setProcessingError] = useState<string | null>(null);
 
   const { processImages, cancel, progress, isProcessing } = useImageProcessor();
+  const isReadyForProcessing = Boolean(settings && images.length > 0);
 
   useEffect(() => {
     if (!settings) return;
@@ -34,6 +43,14 @@ export default function HomePage() {
       }
     });
   }, [settings]);
+
+  /**
+   * リサイズ処理を実行するPromise関数
+   */
+  const executeResize = async (): Promise<Blob[]> => {
+    const files = images.map((img) => img.file!).filter(Boolean);
+    return await processImages(files, settings!);
+  };
 
   /**
    * 配列の並び替え
@@ -93,36 +110,55 @@ export default function HomePage() {
   };
 
   const handleFiles = async (files: File[]) => {
-    const mapped = await Promise.all(
-      files.map(async (file) => {
-        const img = new Image();
-        img.src = URL.createObjectURL(file);
-        await new Promise((resolve) => (img.onload = resolve));
-        return {
-          id: crypto.randomUUID(),
-          file,
-          previewUrl: img.src,
-          name: file.name,
-          width: img.naturalWidth,
-          height: img.naturalHeight,
-          size: file.size,
-        };
-      }),
-    );
+    setIsUploading(true);
+    setProcessingError(null);
+    setProcessedResults(null);
 
-    setImages((prev) => [...prev, ...mapped]);
+    try {
+      const mapped = await Promise.all(
+        files.map(async (file) => {
+          const img = new Image();
+          img.src = URL.createObjectURL(file);
+          await new Promise((resolve) => (img.onload = resolve));
+          return {
+            id: crypto.randomUUID(),
+            file,
+            previewUrl: img.src,
+            name: file.name,
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+            size: file.size,
+          };
+        }),
+      );
+
+      setImages((prev) => [...prev, ...mapped]);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleProcess = async () => {
     if (!settings) {
-      alert("設定を選択してください");
+      toast.error("設定を選択してください");
       return;
     }
 
-    try {
-      const files = images.map((img) => img.file!).filter(Boolean);
+    setProcessingError(null);
 
-      const results = await processImages(files, settings);
+    const toastId = toast.promise(executeResize(), {
+      loading: "画像を処理しています...",
+      success: (results) => `${results.length}枚の画像を処理しました`,
+      error: (error) => {
+        if (error instanceof Error && error.message === "Cancelled") {
+          return "処理がキャンセルされました";
+        }
+        return "画像処理に失敗しました";
+      },
+    });
+
+    try {
+      const results = await toastId.unwrap();
       setProcessedResults(results);
 
       if (results.length === 1) {
@@ -131,19 +167,13 @@ export default function HomePage() {
         a.href = url;
         a.download = "resized_image";
         a.click();
-        setHistory((prev) => [
-          ...prev,
-          `ダウンロード: ${new Date().toLocaleTimeString()} - 単一画像`,
-        ]);
         return;
       }
 
       // 複数ファイルの場合はプレビュー後に手動保存
     } catch (error) {
-      if (error.message === "Cancelled") {
-        // キャンセルされた場合、何もしない
-      } else {
-        alert("処理中にエラーが発生しました: " + error.message);
+      if (error instanceof Error && error.message !== "Cancelled") {
+        setProcessingError(error.message || "処理中にエラーが発生しました");
       }
     }
   };
@@ -151,150 +181,125 @@ export default function HomePage() {
   const handleDownloadZip = async () => {
     if (!processedResults) return;
 
-    try {
-      await exportAsZip(
+    const toastId = toast.promise(
+      exportAsZip(
         processedResults,
         images.map((img) => img.name),
-      );
-      setHistory((prev) => [
-        ...prev,
-        `ダウンロード: ${new Date().toLocaleTimeString()} - ZIP (${processedResults.length}画像)`,
-      ]);
+      ),
+      {
+        loading: "ZIPファイルを作成しています...",
+        success: "ZIPファイルをダウンロードしました",
+        error: (error) => {
+          if (error instanceof Error) {
+            return `ZIP作成に失敗しました: ${error.message}`;
+          }
+          return "ZIP作成に失敗しました";
+        },
+      },
+    );
+
+    try {
+      await toastId.unwrap();
     } catch (error) {
-      alert("ZIP作成中にエラーが発生しました: " + error.message);
+      // unwrap でエラーが発生した場合、toast.promise でエラーが表示されるので、ここでは何もしない
     }
   };
 
   return (
-    <main className="min-h-screen p-6 bg-gray-50">
-      <div className="max-w-5xl mx-auto space-y-10">
-        {/* Step1 */}
-        <section>
-          <h2 className="text-xl font-semibold">Step1: 画像アップロード</h2>
-          <DropZone
-            onFilesAccepted={handleFiles}
-            hasImages={images.length > 0}
-          />
-        </section>
-
-        {/* Step2 */}
-        <section>
-          <h2 className="text-xl font-semibold">Step2: 画像一覧</h2>
-
-          {images.length === 0 ? (
-            <p>画像がありません</p>
-          ) : (
-            <>
-              <ImageGrid
-                images={images}
-                onReorder={(from, to) => {
-                  setImages((prev) => reorder(prev, from, to));
-                }}
-              />
-
-              {processedResults && (
-                <div className="mt-6 space-y-4">
-                  <h3 className="text-lg font-semibold">Before / After 比較</h3>
-                  {images.map((img, index) => (
-                    <ComparePreview
-                      key={img.id}
-                      before={img.previewUrl}
-                      after={afterMap[img.id]}
-                      onClick={() =>
-                        setSelectedImage(afterMap[img.id] || img.previewUrl)
-                      }
-                    />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </section>
-
-        {/* Step3 */}
-        {images.length > 0 && (
-          <section>
-            <h2 className="text-xl font-semibold">Step3: リサイズ設定</h2>
-
-            <ResizeOptions
-              onChange={setSettings}
-              originalWidth={images[0]?.width || 800}
-              originalHeight={images[0]?.height || 600}
-            />
-          </section>
-        )}
-
-        {/* Step4 */}
-        {images.length > 0 && (
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold">Step4: 実行</h2>
-
-            <div className="flex gap-2">
-              <button
-                onClick={handleProcess}
-                disabled={isProcessing}
-                className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50"
-              >
-                {isProcessing ? "処理中..." : "リサイズ開始"}
-              </button>
-
-              {isProcessing && (
-                <button
-                  onClick={cancel}
-                  className="bg-red-500 text-white px-4 py-2 rounded"
-                >
-                  キャンセル
-                </button>
-              )}
-
-              {processedResults &&
-                !isProcessing &&
-                processedResults.length > 1 && (
-                  <button
-                    onClick={handleDownloadZip}
-                    className="bg-purple-500 text-white px-4 py-2 rounded"
-                  >
-                    ZIPで保存
-                  </button>
-                )}
-
-              {processedResults && !isProcessing && (
-                <button
-                  onClick={handleProcess}
-                  className="bg-green-500 text-white px-4 py-2 rounded"
-                >
-                  再実行
-                </button>
-              )}
-            </div>
-
-            {isProcessing && <ProgressBar progress={progress} />}
-          </section>
-        )}
-      </div>
-
-      {/* ダウンロード履歴 */}
-      <section className="mt-10">
-        <h2 className="text-lg font-semibold">ダウンロード履歴</h2>
-
-        {history.length === 0 ? (
-          <p className="text-sm text-gray-500">履歴なし</p>
-        ) : (
-          <ul className="text-sm space-y-1">
-            {history.map((h, i) => (
-              <li key={i}>{h}</li>
-            ))}
-          </ul>
-        )}
+    <PageContainer>
+      {/* Upload Section */}
+      <section id="upload-area" className="mb-12">
+        <SectionTitle
+          title="1. 画像をアップロード"
+          description="処理したい画像を追加してください"
+        />
+        <UploadCard
+          onFilesAccepted={handleFiles}
+          hasImages={images.length > 0}
+          isUploading={isUploading}
+        />
       </section>
 
-      {/* 画像拡大モーダル */}
+      {/* Settings Section */}
+      {images.length > 0 && (
+        <section className="mb-12">
+          <SectionTitle
+            title="2. 設定を完了"
+            description="リサイズ条件を選択してから、プレビューと処理を進めます"
+          />
+          <ResizeSettingsCard
+            onChange={(nextSettings) => {
+              setSettings(nextSettings);
+              setProcessedResults(null);
+            }}
+            originalWidth={images[0]?.width || 800}
+            originalHeight={images[0]?.height || 600}
+          />
+        </section>
+      )}
+
+      {/* Preview Section */}
+      {images.length > 0 && (
+        <section className="mb-12">
+          <SectionTitle
+            title="3. 画像を確認"
+            description="設定を反映した画像を確認し、必要があれば順番を調整してください"
+          />
+          <PreviewGrid
+            images={images}
+            onReorder={(from, to) => {
+              setImages((prev) => reorder(prev, from, to));
+              setProcessedResults(null);
+            }}
+            processedResults={processedResults || undefined}
+            onImageClick={setSelectedImage}
+          />
+
+          {/* Before/After Comparison */}
+          {processedResults && (
+            <div className="mt-8">
+              <SectionTitle
+                title="処理結果比較"
+                description="左が元の画像、右がリサイズ後の結果です"
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {images.map((img) => (
+                  <ComparePreview
+                    key={img.id}
+                    before={img.previewUrl}
+                    after={afterMap[img.id]}
+                    onClick={() =>
+                      setSelectedImage(afterMap[img.id] || img.previewUrl)
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Processing Section */}
+      <ProcessingCard
+        imagesCount={images.length}
+        hasSettings={!!settings}
+        isProcessing={isProcessing}
+        progress={progress}
+        processedCount={processedResults?.length || 0}
+        hasResults={!!processedResults}
+        errorMessage={processingError}
+        onProcess={handleProcess}
+        onCancel={cancel}
+        onDownloadZip={handleDownloadZip}
+      />
+
+      {/* Modal */}
       {selectedImage && (
         <ImageModal
           src={selectedImage}
           onClose={() => setSelectedImage(null)}
         />
       )}
-    </main>
+    </PageContainer>
   );
 }
